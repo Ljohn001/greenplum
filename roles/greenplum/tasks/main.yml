@@ -1,0 +1,114 @@
+---
+# tasks file for gp-db
+- name: 01.同步时间
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == "7"
+  shell: "ntpdate ntp1.aliyun.com"
+  ignore_errors: true
+
+- name: 02.拷贝 hosts 和 sysctl.conf
+  copy: src={{ item }} dest=/etc/{{ item }}
+  with_items:
+  - hosts
+  - sysctl.conf
+
+- name: 03.设置 limits
+  copy: src=limits.conf dest=/etc/security/limits.conf
+
+- name: 04.生效 sysctl
+  shell: "sysctl -p"
+
+- name: 05.关闭 selinux
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == "7"
+  shell: "setenforce 0 && echo SELINUX=disabled > /etc/selinux/config"
+  ignore_errors: true
+
+- name: 06.停用防火墙
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == "7"
+  service: name={{ item }} state=stopped enabled=no 
+  with_items:
+  - firewalld
+  ignore_errors: true
+
+- name: 07.创建gpadmin用户组
+  group: name=gpadmin gid=3030 state=present
+
+- name: 08.创建gpmon用户组
+  group: name=gpmon gid=3040 state=present
+
+- name: 09.创建用户
+  user: name=gpadmin uid=3030 group=gpadmin password={{ gpadmin_pass | password_hash('sha512') }} home=/home/gpadmin shell=/bin/bash state=present
+
+- name: 10.创建用户
+  user: name=gpmon uid=3040 group=gpmon password={{ gpmon_pass | password_hash('sha512') }} home=/home/gpmon shell=/bin/bash state=present
+
+- name: 11.目录权限
+  file: name=/data owner=gpadmin group=gpadmin mode=0755 recurse=yes
+
+- name: 12.创建管理目录
+  file: path=/data/{{ item }} state=directory owner=gpadmin group=gpadmin mode=0755 recurse=yes
+  when: ansible_default_ipv4.address == '192.168.61.61' and ansible_distribution_major_version == "7" or ansible_default_ipv4.address == '192.168.61.62' and ansible_distribution_major_version == "7"
+  with_items:
+  - gpmaster
+
+- name: 13.创建数据目录
+  file: path=/data/{{ item }} state=directory owner=gpadmin group=gpadmin mode=0755 recurse=yes
+#  file: path=/data/{{ item }} state=absent
+  when: ansible_default_ipv4.address != '192.168.61.61' and ansible_default_ipv4.address != '192.168.61.62'
+  with_items:
+  - gpdatap1
+  - gpdatap2
+  - gpdatam1
+  - gpdatam2
+
+- name: 14.执行变量脚本
+  script: gpdb_env.sh 
+
+- name: 15.添加init.d文件
+  template: src={{ item }} dest=/etc/init.d/{{ item }} mode=755
+  with_items:
+  - blockdev-setra-sdb1
+  - disable-transparent-hugepages
+
+- name: 16.添加开机文件
+  template: src={{ item }} dest=/etc/systemd/system/{{ item }} mode=755
+  with_items:
+  - disable-thp.service
+  - blockdev-setra-sdb1.service 
+
+- name: 17.设置开机启动
+  service: name={{ item }} state=restarted enabled=yes
+  with_items:
+  - disable-thp.service
+  - blockdev-setra-sdb1.service
+
+- name: 18.拷贝greenplum 相关文件
+  copy: src={{ item }} dest=/home/gpadmin/{{ item }} owner=gpadmin group=gpadmin mode=755
+  when: ansible_default_ipv4.address == '192.168.61.61' and ansible_distribution_major_version == "7"
+  with_items:
+  - greenplum-db-5.8.0-rhel7-x86_64.rpm
+  - gpccinstall-4.0.0
+  - all_nodes
+  - seg_nodes
+  - gpinitsystem_config
+
+
+- name: 19.安装 greenplum 软件
+  yum: name=/home/gpadmin/{{ item }} state=installed
+  when: ansible_default_ipv4.address == '192.168.61.61' and ansible_distribution_major_version == "7"
+  with_items:
+  - greenplum-db-5.8.0-rhel7-x86_64.rpm
+
+- name: 设置 greenplum-db 属性
+  file: path=/usr/local/greenplum-db-5.8.0 state=directory owner=gpadmin group=gpadmin mode=0755 recurse=yes
+  when: ansible_default_ipv4.address == '192.168.61.61' and ansible_distribution_major_version == "7"
+
+- name: 设置 greenplum-db 属性
+  file: src=/usr/local/greenplum-db-5.8.0 dest=/usr/local/greenplum-db state=link owner=gpadmin group=gpadmin
+  when: ansible_default_ipv4.address == '192.168.61.61' and ansible_distribution_major_version == "7"
+
+#- name: 07.安装基础软件
+#  yum: name={{ item }} state=installed
+#  with_flattened:
+#  - ['gcc','gcc-c++','wget','cmake3','git','bison','flex','libedit-devel','zlib','zlib-devel','perl-devel','perl-ExtUtils-Embed','python-devel']
+#  - ['libevent','libevent-devel','libxml2','libxml2-devel','libcurl','libcurl-devel','bzip2','bzip2-devel','net-tools','libffi-devel','openssl-devel']
+#  ignore_errors: true

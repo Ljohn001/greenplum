@@ -1,0 +1,4 @@
+#!/usr/bin/env ansible-playbook
+- hosts: greenplum
+  roles:
+  - greenplum

@@ -1,0 +1,4 @@
+---
+# vars file for gp-db
+gpadmin_pass: gpadmin
+gpmon_pass: gpmon

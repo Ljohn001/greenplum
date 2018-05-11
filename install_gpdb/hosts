@@ -1,0 +1,6 @@
+[greenplum]
+192.168.61.61 ansible_user=root ansible_password=king111
+192.168.61.62 ansible_user=root ansible_password=king111
+192.168.61.63 ansible_user=root ansible_password=king111
+192.168.61.64 ansible_user=root ansible_password=king111
+192.168.61.65 ansible_user=root ansible_password=king111
