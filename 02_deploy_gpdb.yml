@@ -1,0 +1,7 @@
+#!/usr/bin/env ansible-playbook
+- hosts: greenplum
+  roles:
+  - greenplum
+  
+  tasks:
+  - debug: msg="主机 {{ ansible_nodename }} GreenPlum 已部署完毕！！！"

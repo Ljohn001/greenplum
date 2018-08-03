@@ -1,2 +1,9 @@
----
-# defaults file for gp-db
+# set setup env
+all_nodes: "/playbook/greenplum/roles/greenplum/files/all_nodes"
+seg_nodes: "/playbook/greenplum/roles/greenplum/files/seg_nodes"
+data_primary: "(/greenplum/data/gpdatap1 /greenplum/data/gpdatap2 /greenplum/data/gpdatap3 /greenplum/data/gpdatap4)"
+data_mirror: "(/greenplum/data/gpdatam1 /greenplum/data/gpdatam2 /greenplum/data/gpdatam3 /greenplum/data/gpdatam4)"
+
+# set soft deploy directory
+db: "/greenplum/soft/greenplum-db-5.10.0"
+web: "/greenplum/soft/greenplum-cc-web-4.3.0"

@@ -1,0 +1,20 @@
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+
+192.168.61.70 ansible.ko178.cn ansible
+
+192.168.61.61 node61.ko178.cn
+192.168.61.62 node62.ko178.cn
+192.168.61.63 node63.ko178.cn
+192.168.61.64 node64.ko178.cn
+192.168.61.65 node65.ko178.cn 
+192.168.61.66 node66.ko178.cn
+192.168.61.67 node67.ko178.cn
+192.168.61.68 node68.ko178.cn
+192.168.61.69 node69.ko178.cn
+
+192.168.61.51 node51
+192.168.61.52 node52
+192.168.61.53 node53
+192.168.61.54 node54
+192.168.61.55 node55

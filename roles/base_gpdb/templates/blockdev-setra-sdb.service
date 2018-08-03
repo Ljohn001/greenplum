@@ -1,9 +1,9 @@
 [Unit]
-Description=Blocdev –setra N
+Description=Blocdev -setra N
 After=multi-user.target
  
 [Service]
-ExecStart=/etc/init.d/blockdev-setra-sdb1 start
+ExecStart=/etc/init.d/blockdev-setra-sdb start
 Type=simple
  
 [Install]

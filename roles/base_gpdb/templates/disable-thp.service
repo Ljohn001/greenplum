@@ -1,10 +1,10 @@
 [Unit]
 Description=Disable Transparent Hugepages
 After=multi-user.target
- 
+
 [Service]
 ExecStart=/etc/init.d/disable-transparent-hugepages start
 Type=simple
- 
+
 [Install]
 WantedBy=multi-user.target

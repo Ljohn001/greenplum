@@ -1,0 +1,57 @@
+- name: 13. 设置主机名称
+  shell: hostnamectl set-hostname '{{ hostname }}'
+
+- name: 12. 创建 hosts 文件
+  local_action: script create_hosts.sh
+  run_once: true
+
+- name: 11. 升级 hosts 文件
+  local_action: script update_hosts.sh
+  environment:
+    ip: '{{ ansible_default_ipv4.address }}'
+    hostname: '{{ hostname }}'
+
+- name: 10. 拷贝新 hosts 文件
+  copy: src=hosts dest=/etc/hosts
+
+- name: 09. 优化 limits.conf
+  copy: src=limits.conf dest=/etc/security/limits.conf
+
+- name: 08. 优化 20-nproc.conf
+  copy: src=20-nproc.conf dest=/etc/security/limits.d/20-nproc.conf
+
+- name: 07. 优化 sysctl.conf
+  copy: src=sysctl.conf dest=/etc/sysctl.conf
+
+- name: 06. 升级 kernel
+  yum: name={{ item }} state=installed update_cache=yes
+  with_items:
+  - kernel-3.10.0-862.9.1.el7.x86_64
+  - linux-firmware-20180220-62.2.git6d51311.el7_5.noarch
+
+- name: 05. 修改变量脚本
+  script: gpdb_env.sh 
+
+- name: 04. 添加init.d文件
+  template: src={{ item }} dest=/etc/init.d/{{ item }} mode=755
+  with_items:
+  - blockdev-setra-sdb
+  - disable-transparent-hugepages
+
+- name: 03. 添加开机文件
+  template: src={{ item }} dest=/etc/systemd/system/{{ item }} mode=755
+  with_items:
+  - blockdev-setra-sdb.service
+  - disable-thp.service
+
+- name: 02. 设置开机启动
+  service: name={{ item }} state=restarted enabled=yes
+  with_items:
+  - blockdev-setra-sdb.service
+  - disable-thp.service
+
+- name: 01. 重启服务器
+  shell: sleep 5 && shutdown -r now
+  async: 3
+  poll: 0
+  ignore_errors: true

@@ -1,6 +1,4 @@
+cat > /playbook/greenplum/roles/greenplum/files/hosts <<EOF
 127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
 ::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
-192.168.61.61 gpmaster61
-192.168.61.62 gpsegment62
-192.168.61.63 gpsegment63
-192.168.61.64 gpsegment64
+EOF

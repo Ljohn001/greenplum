@@ -1,0 +1,7 @@
+#!/usr/bin/env ansible-playbook
+- hosts: greenplum
+  roles:
+  - base_gpdb
+
+  tasks:
+  - debug: msg="主机 {{ ansible_nodename }} 将在 5 秒后重启，稍后请执行 02—deploy_gpdb.yml 继续安装 GreenPlum!"

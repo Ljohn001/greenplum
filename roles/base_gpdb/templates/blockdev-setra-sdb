@@ -3,7 +3,7 @@ device_name=/dev/sdb1
 case $1 in
   start)
     if `mount | grep "^${device_name}" > /dev/null`;then
-      /sbin/blockdev --setra 16384 ${device_name}
+      /sbin/blockdev --setra 65535 ${device_name}
     else
       exit 0
     fi

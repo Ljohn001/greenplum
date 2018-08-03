@@ -1,0 +1,23 @@
+#!/usr/bin/env ansible-playbook
+- hosts: 
+  - greenplum
+#  - greenplum-new
+
+  tasks:
+  - name: 结束 gpadmin 进程
+    shell: "pkill -u gpadmin"
+    ignore_errors: true
+
+  - name: 删除 gpadmin 用户
+    user: name=gpadmin state=absent remove=yes
+
+  - name: 删除 greenplum 数据目录
+    file: name={{ item }} state=absent
+    with_items:
+    - "/greenplum/soft"
+    - "/greenplum/data"
+    - "/home/gpadmin"
+    - "/etc/init.d/blockdev-setra-sdb"
+    - "/etc/init.d/disable-transparent-hugepages"
+    - "/etc/systemd/system/blockdev-setra-sdb.service"
+    - "/etc/systemd/system/disable-thp.service"

@@ -8,10 +8,10 @@ case $1 in
     else
       exit 0
     fi
- 
+
     echo never > ${thp_path}/enabled
     echo never > ${thp_path}/defrag
- 
+
     unset thp_path
     ;;
 esac

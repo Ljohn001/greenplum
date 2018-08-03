@@ -1,0 +1,14 @@
+[greenplum:children]
+gpmaster
+gpsegment
+
+[gpmaster]
+192.168.61.61 hostname=gpmaster61 ansible_ssh_pass=gpadmin
+
+[gpsegment]
+192.168.61.62 hostname=gpsegment62 ansible_ssh_pass=gpadmin
+192.168.61.63 hostname=gpsegment63 ansible_ssh_pass=gpadmin
+192.168.61.64 hostname=gpsegment64 ansible_ssh_pass=gpadmin
+
+[gpstandby]
+192.168.61.65 hostname=gpstandby65 ansible_ssh_pass=gpadmin

@@ -1,0 +1,75 @@
+- name: 16. optimize ssh
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == "7"
+  copy: src=sshd_config dest=/etc/ssh/sshd_config
+
+- name: 15. sync time
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == "7"
+  cron: name="sync time" minute='*/5' hour=* day=* month=* weekday=* job="/usr/sbin/ntpdate -u ntp1.aliyun.com >/dev/null 2>&1"
+  ignore_errors: true
+
+- name: 14. hosts,dns
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == "7"
+  copy: src=/etc/{{ item }} dest=/etc/{{ item }}
+  with_items:
+  - hosts
+  - resolv.conf
+
+- name: 13. copy audit script
+  copy: src=audit_shell.sh dest=/opt/audit_shell.sh
+
+- name: 12. run audit script
+  shell: "/usr/bin/bash /opt/audit_shell.sh"
+
+- name: 11. del audit script
+  file: path=/opt/audit_shell.sh state=absent  
+
+- name: 10. clear old yum repo
+  file: path=/etc/yum.repos.d/ state=absent
+
+- name: 09. create new repo directrory
+  file: path=/etc/yum.repos.d/ state=directory
+
+- name: 08. copy epel
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == "7"
+  copy: src={{ item }} dest=/etc/yum.repos.d/{{ item }}
+  with_items:
+  - centos7-ali.repo
+  - epel-release-latest-7.noarch.rpm
+
+- name: 07. del old epel 
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == "7"
+  yum: name=epel-release state=absent
+  ignore_errors: true
+
+- name: 06. yum epel
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == "7"
+  yum: name=/etc/yum.repos.d/epel-release-latest-7.noarch.rpm state=present
+
+- name: 05. del install epel pkg
+  file: name=/etc/yum.repos.d/{{ item }} state=absent
+  with_items:
+  - epel-release-latest-7.noarch.rpm
+
+- name: 04. close selinux
+  shell: "setenforce 0"
+  failed_when: false
+
+- name: 03. forever close selinux
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == "7"
+  lineinfile:
+    dest: /etc/selinux/config
+    regexp: "^SELINUX="
+    line: "SELINUX=disabled"
+
+- name: 02. stop freewalld
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == "7"
+  service: name={{ item }} state=stopped
+  with_items:
+  - firewalld
+  ignore_errors: true
+
+- name: 01 install base pkg
+  when: ansible_distribution == "CentOS" and ansible_distribution_major_version == "7"
+  yum: name={{ item }} state=installed
+  with_together:
+    - [ wget,tree,git,nmap,ccze,lrzsz,telnet,libXaw,libXpm ]

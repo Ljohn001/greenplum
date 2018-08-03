@@ -1,477 +1,300 @@
-# 安装前注意事项
-## 1.本项目基于ansible部署安装基础环境
-## 2.修改install/hosts 和 roles/greenplum/files/hosts 对应信息
-## 3.百度云盘提供下载 Greenplum软件包 [https://pan.baidu.com/s/1Q_ekk2bSZVoRKA_8jkJJkA](https://pan.baidu.com/s/1Q_ekk2bSZVoRKA_8jkJJkA)
+# 基于 Ansible-Playbook 自动化部署 GreenPlum 数据仓库
+> 本项目是通过 Ansible-Playbook 剧本进行自动化部署安装 GreenPlum 数据仓库。当前剧本版本是：v1.0。
 
-# 部署环境说明
-### 共使用5台主机进行部署安装，内存为 16Gb
-|ip地址|主机名|
-|-:-|-:-|-:-|
-|192.168.61.61 | mdw|
-|192.168.61.62 | smdw|
-|192.168.61.63 | sdw1|
-|192.168.61.64 | sdw2|
-|192.168.61.65 | sdw3|
+# 第1部分 项目部署
+## 1.1 软件版本说明
+|软件名称|软件版本|
+|:----------------|:-------------|
+|greenplum-db     | db   v5.10.0 |
+|greenplum-cc-web | gpcc v4.3.0  |
 
-# 系统版本及内核版本
+## 1.2 部署环境
+|序号|ip地址|主机名|内存|系统版本|内核版本|
+|:---|:-------------|:-----------|:---|:--------------|:------------------------|
+|1   |192.168.61.61 |gpmaster61  |16Gb|CentOS 7.5.1804|3.10.0-862.9.1.el7.x86_64|
+|2   |192.168.61.62 |gpsegment62 |16Gb|CentOS 7.5.1804|3.10.0-862.9.1.el7.x86_64|
+|3   |192.168.61.63 |gpsegment63 |16Gb|CentOS 7.5.1804|3.10.0-862.9.1.el7.x86_64|
+|4   |192.168.61.64 |gpsegment64 |16Gb|CentOS 7.5.1804|3.10.0-862.9.1.el7.x86_64|
+
+## *** 下载软件 ***
+> /下创建 playbook 部署目录，git本项目到此目录。
+[下载软件包](https://pan.baidu.com/s/15u11nAaFzcQORFhp7FXKcQ)
+>解压软件包到 /greenplum/roles/greenplum/files/ 目录
+
+## 1.3 基础环境(需要重启)
 ```
-[root@node61 ~]# cat /etc/centos-release
-CentOS Linux release 7.4.1708 (Core) 
-[root@node61 ~]# uname -r
-3.10.0-693.21.1.el7.x86_64
-```
-
-#  1. GreenPlum 5.8.0 集群部署安装
-## 1.1 ansible初始化后，导入变量
-
-#  1. GreenPlum 5.8.0 集群部署安装
-## 1.1 ansible初始化后，导入变量
-```
-cat >> .bashrc << EOF
-export MASTER_DATA_DIRECTORY=/data/gpmaster/gpseg-1
-EOF
-source .bashrc
-source /usr/local/greenplum-db/greenplum_path.sh
+/usr/bin/bash 01_base_gpdb.yml
 ```
 
-## 1.2 添加互信,root密码
+## 1.4 初始化安装
 ```
-rm -rf ~/.ssh/*
-gpssh-exkeys -f  /home/gpadmin/all_nodes
-```
-
-## 1.3 检查主机
-```
-gpssh -f /home/gpadmin/all_nodes -e "ls -l"
+/usr/bin/bash 02_deploy_gpdb.yml
 ```
 
-## 1.4 安装gpdb到所有节点
+## 1.5 web监控访问地址
 ```
-gpseginstall -f /home/gpadmin/all_nodes -u gpadmin -p gpadmin
-```
-
-##  1.5 初始化sdw主节点,部署smdw备份节点
-**
--c：指定初始化文件。
--h：指定segment主机文件。
--s：指定standby主机，创建standby节点。
-**
-```
-su - gpadmin
-cat >> .bashrc << EOF
-export MASTER_DATA_DIRECTORY=/data/gpmaster/gpseg-1
-source /usr/local/greenplum-db/greenplum_path.sh
-EOF
-source .bashrc
-gpinitsystem -c /home/gpadmin/gpinitsystem_config -s smdw
-y
-yes
-```
-
->> 安装失败回退脚本
-```
-cd ~/gpAdminLogs/
-backout_gpinitsystem_gpadmin_20180508_120753
-```
-**
-可以使用此脚本清理部分创建的Greenplum数据库系统。此回退脚本将删除任何实用程序创建的数据目录，postgres进程和日志文件。纠正导致gpinitsystem失败并运行退出脚本的错误后，您应该准备重试初始化您的Greenplum数据库数组。
-**
-
-## 1.6 添加访问权限
-```
-echo "host     all         gpadmin         0.0.0.0/0       md5" >> /data/gpmaster/gpseg-1/pg_hba.conf
-```
-
-## 1.7 同步pg_hba.conf到smdw备份节点，重新加载gpdb配置文件
-```
-gpscp -h smdw -v $MASTER_DATA_DIRECTORY/pg_hba.conf =:$MASTER_DATA_DIRECTORY/
-gpstop -u
-```
-
-## 1.8 测试GPDB集群状态
-```
-gpstate -s
-```
-
-## 1.9 设置gpadmin远程访问密码
-```
-psql postgres gpadmin
-alter user gpadmin encrypted password 'gpadmin';
-```
-
-## 1.10 查询测试
-```
-psql -h 192.168.61.61 -p 5432 -d postgres -U gpadmin -c 'select dfhostname, dfspace,dfdevice from gp_toolkit.gp_disk_free order by dfhostname;'
-psql -h 192.168.61.61 -p 5432 -d postgres -U gpadmin -c '\l+'
-```
-
-``` ### 至此 GreenPlum 集群部署完成 ### ```
-
-# 2. GreenPlum-cc-web 4.0 部署安装
-## 2.1 gpadmin创建gpperfmon数据库, 默认用户gpmon
-```
-su - gpadmin
-source /usr/local/greenplum-db/greenplum_path.sh
-gpperfmon_install --enable --password gpmon --port 5432
-```
-```正常显示 -gpperfmon will be enabled after a full restart of GPDB ```
-
-## 2.2 重启gpdb，没有error为正常
-```
-echo "host     all         gpmon         0.0.0.0/0    md5" >> $MASTER_DATA_DIRECTORY/pg_hba.conf
-gpstop -afr
-```
-
-## 2.3 拷贝mdw主配置文件到smdw备份配置文件
-```
-gpscp -h smdw -v $MASTER_DATA_DIRECTORY/pg_hba.conf =:$MASTER_DATA_DIRECTORY/
-gpscp -h smdw -v ~/.pgpass =:~/
-```
-## 2.4 设置gpmon密码为空，安装gcc需要
-```
-psql -d gpperfmon -c "alter user gpmon encrypted password '';"
-```
-
-## 2.5 安装greenplum-cc-web
-> root用户执行
-
-```
-/home/gpadmin/gpccinstall-4.0.0
-q
-Do you agree to the Pivotal Greenplum Command Center End User License Agreement? Yy/Nn (Default=Y)
-Where would you like to install Greenplum Command Center? (Default=/usr/local)
-
-What would you like to name this installation of Greenplum Command Center? (Default=gpcc)
-
-What port would you like gpcc webserver to use? (Default=28080)
-
-Would you like to enable kerberos? Yy/Nn (Default=N)
-
-Would you like enable SSL? Yy/Nn (Default=N)
-
-Installation in progress...
-```
-
-## 2.6 改变属性
-```
-chown -R gpadmin.gpadmin /usr/local/greenplum-cc-web-4.0.0
-```
-
-## 2.7 安装web页面
-```
-su - gpadmin
-cat >> .bashrc << EOF
-source /usr/local/greenplum-cc-web-4.0.0/gpcc_path.sh
-EOF
-source .bashrc
-gpscp -h smdw -v ~/.bashrc =:~/.bashrc
-```
-
-## 2.8 修改gpmon密码
-```
-psql -d gpperfmon -c "alter user gpmon encrypted password 'gpmon';"
-```
-
-## 2.9 启动gpcc web服务
-```
-gpcc start
-gpstop -afr
-```
-
-## 2.10 查询生成数据
-```
-psql -d gpperfmon -c 'show timezone'
-psql -d gpperfmon -c 'select * from system_now'
-```
-
-## 2.11 访问web页面
 http://192.168.61.61:28080
-``` ### 至此web监控页面完成 ###```
-
-# 3. 验证集群
-## 3.1 验证网络性能
-```
-gpcheckperf -f gp_all_nodes -r N -d /tmp/
+# 用户/密码：gpmon/gpmon
 ```
 
-### 3.2 验证磁盘I/O和内存带宽性能
+## 1.6 项目结构
 ```
-gpcheckperf -f gp_all_nodes -r ds -d /tmp
+/playbook/greenplum/
+├── 01_base_gpdb.yml                                   # 基础环境部署脚本(需要重启)
+├── 02_deploy_gpdb.yml                                 # 部署 GreenPlum 脚本
+├── ansible.cfg                                        # GreenPlum Ansible 配置文件 
+├── hosts                                              # 部署主机列表
+├── README.md
+├── remove_gpdb.yml                                    # 清理 GreenPlum 脚本
+└── roles
+    ├── base_gpdb
+    │   ├── files
+    │   │   ├── 20-nproc.conf
+    │   │   ├── create_hosts.sh
+    │   │   ├── gpdb_env.sh
+    │   │   ├── hosts                                  # 根据需求修改 
+    │   │   ├── limits.conf
+    │   │   ├── sysctl.conf
+    │   │   └── update_hosts.sh
+    │   ├── meta
+    │   │   └── main.yml
+    │   ├── tasks
+    │   │   └── main.yml
+    │   └── templates
+    │       ├── blockdev-setra-sdb
+    │       ├── blockdev-setra-sdb.service
+    │       ├── disable-thp.service
+    │       └── disable-transparent-hugepages
+    ├── greenplum
+    │   ├── defaults
+    │   │   └── main.yml
+    │   ├── files
+    │   │   ├── all_nodes                              # 根据需求修改
+    │   │   ├── create_all.sh
+    │   │   ├── greenplum-cc-web.tar.gz
+    │   │   ├── greenplum-db.tar.gz
+    │   │   ├── init_gpdb.sh
+    │   │   ├── key.tar.gz
+    │   │   ├── seg_nodes                              # 根据需求修改
+    │   │   └── upgrade_seg.sh
+    │   ├── meta
+    │   │   └── main.yml
+    │   ├── tasks
+    │   │   └── main.yml
+    │   ├── templates
+    │   │   ├── bash_profile.j2
+    │   │   └── gpinitsystem_config.j2
+    │   └── vars
+    │       └── main.yml
+    └── system_env
+        ├── files
+        │   ├── audit_shell.sh
+        │   ├── bashrc
+        │   ├── centos7-ali.repo
+        │   ├── epel-release-latest-7.noarch.rpm
+        │   ├── hosts                                  # 根据需求修改
+        │   ├── resolv.conf
+        │   └── sshd_config
+        └── tasks
+            └── main.yml
+
+16 directories, 41 files
 ```
 
-### 3.3 验证内存带宽性能
+# 第2部分 GreenPlum 常用命令
+## 2.1 gpstart
+|命令 参数| 作用 |
+|:----------|:--------|
+|gpstart -a | 快速启动|
+|gpstart -d | 指定数据目录（默认值：$MASTER_DATA_DIRECTORY）
+|gpstart -q | 在安静模式下运行。命令输出不显示在屏幕，但仍然写入日志文件。
+|gpstart -m | 以维护模式连接到Master进行目录维护。例如：$ PGOPTIONS='-c gp_session_role=utility' psql postgres
+|gpstart -R | 管理员连接
+|gpstart -v | 显示详细启动信息
+
+## 2.2 gpstop
+|命令参数  | 作用 |
+|:---------|:-----|
+|gpstop -a | 快速停止
+|gpstop -d | 指定数据目录（默认值：$MASTER_DATA_DIRECTORY）
+|gpstop -m | 维护模式
+|gpstop -q | 在安静模式下运行。命令输出不显示在屏幕，但仍然写入日志文件。
+|gpstop -r | 停止所有实例，然后重启系统
+|gpstop -u | 重新加载配置文件 postgresql.conf 和 pg_hba.conf
+|gpstop -v | 显示详细启动信息
+|gpstop -M fast      | 快速关闭。正在进行的任何事务都被中断。然后滚回去。
+|gpstop -M immediate | 立即关闭。正在进行的任何事务都被中止。不推荐这种关闭模式，并且在某些情况下可能导致数据库损坏需要手动恢复。
+|gpstop -M smart     | 智能关闭。如果存在活动连接，则此命令在警告时失败。这是默认的关机模式。
+|gpstop --host hostname | 停用segments数据节点，不能与-m、-r、-u、-y同时使用 
+
+## 2.3 gpstate
+|命令 参数  | 作用 |
+|:----------|:-----|
+|gpstate -b | 显示简要状态
+|gpstate -c | 显示主镜像映射
+|gpstart -d | 指定数据目录（默认值：$MASTER_DATA_DIRECTORY）
+|gpstate -e | 显示具有镜像状态问题的片段
+|gpstate -f | 显示备用主机详细信息
+|gpstate -i | 显示GRIPLUM数据库版本
+|gpstate -m | 显示镜像实例同步状态
+|gpstate -p | 显示使用端口
+|gpstate -Q | 快速检查主机状态
+|gpstate -s | 显示集群详细信息
+|gpstate -v | 显示详细信息
+
+## 2.4 激活备库流程
+|命令参数| 作用 |
+|:-------|:-----|
+|gpactivatestandby -d 路径 | 使用数据目录绝对路径，默认：$MASTER_DATA_DIRECTORY
+|gpactivatestandby -f | 强制激活备份主机
+|gpactivatestandby -v | 显示此版本信息
+
+
+## 2.5 在新主库上，初始化一个后备Master
+|命令参数| 作用 |
+|:-------|:-----|
+|gpinitstandby -s 备库名称 | 指定新备库
+|gpinitstandby -D | debug 模式
+|gpinitstandby -r | 移除备用机
+
+## 2.6 集群恢复
+|命令参数| 作用 |
+|:-------|:-----|
+|gprecoverseg -a | 快速恢复
+|gprecoverseg -i | 指定恢复文件
+|gprecoverseg -d | 指定数据目录
+|gprecoverseg -l | 指定日志文件
+|gprecoverseg -r | 平衡数据
+|gprecoverseg -s | 指定配置空间文件
+|gprecoverseg -o | 指定恢复配置文件
+|gprecoverseg -p | 指定额外的备用机
+|gprecoverseg -S | 指定输出配置空间文件
+
+
+## 2.7 备份/恢复
+### 使用pg_dump和pg_restore实现数据库的备份与恢复
+### 使用dump格式备份和恢复
 ```
-gpcheckperf -f gp_all_nodes -r s -d /tmp
+pg_dump -U gpadmin -Fc chinadaas > chinadaas.dump
+pg_restore -U gpadmin -d chinadaas chinadaas.dump > chinadaas_dump.txt 2>&1
 ```
 
-# 4. postgres 常用命令
-
-## 4.1 数据库启动与关闭
+### 使用tar格式备份和恢复
 ```
-### 直接启动，不交互
-gpstart -a
-
-### 直接停止，不交互
-gpstop -a
-
-### 重新加载配置文件
-gpstop -u
-
-### 重新加载配置重启
-gpstop -afr
+pg_dump -U gpadmin -Ft chinadaas >chinadaas.tar
+pg_restore -U gpadmin -d chinadaas chinadaas.tar > chinadaas_tar.txt 2>&1
 ```
 
-### 4.2 设置默认数据库
-```
-export PGDATABASE=testdb;
-```
+# 第3部分 数据库访问
+### 表 1. 最常用的客户端应用
+|命令名称|用法|
+|:-------|:---|
+|createdb  |创建一个新数据库
+|createlang|定义一种新的过程语言
+|createuser|定义一个新的数据库角色
+|dropdb|移除一个数据库
+|droplang|移除一种过程语言
+|dropuser|移除一个角色
+|psql|PostgreSQL交互式终端
+|reindexdb|对一个数据库重建索引
+|vacuumdb|对一个数据库进行垃圾收集和分析
 
-### 4.3 默认登录testdb
+## 3.1 创建用户
 ```
-psql
-psql (8.3.23)
-Type "help" for help.
-
-testdb=#
-```
-
-### 4.4 终端登录系统
-```
-psql -d postgres
-```
-
-## 4.5 设置gpadmin密码
-```
-psql postgres gpadmin
+CREATE USER 用户名 WITH PASSWORD '密码'
 alter user gpadmin encrypted password 'gpadmin';
 ```
 
-## 4.6 用户登陆
+## 3.2 创建模式
 ```
-psql -h 192.168.61.61 -p 5432 -d postgres -U gpadmin -W
-psql -h 192.168.61.61 -p 5432 -d gpperfmon -U gpmon
-```
-
-## 4.7 列出当前连接
-```
-postgres=# \connect
-You are now connected to database "postgres" as user "gpadmin".
-
-postgres=# \conninfo
-You are connected to database "postgres" as user "gpadmin" via socket in "/tmp" at port "5432".
+CREATE SCHEMA myschema;
 ```
 
-## 4.8 列出所有数据库
+## 3.3 删除模式
 ```
-\l
-```
-
-## 4.9 切换数据库
-```
-\c template1
+DROP SCHEMA myschema;
 ```
 
-## 4.10 查看数据库
+## 3.4 查询当前连接
 ```
-select dfhostname, dfspace,dfdevice from gp_toolkit.gp_disk_free order by dfhostname;
-\l+
-```
-
-## 4.11 查看表内容
-```
-\d
+psql -c "select * from pg_stat_activity;"
+select pg_cancel_backend(客户端进程ID);
+如果无法杀掉则使用
+select pg_terminate_backend(客户端进程ID);
 ```
 
-## 4.12 创建数据库
+## 3.5 查看数据库
 ```
-create database testdb;
-```
-
-## 4.13 退出数据库
-```
-\q
+psql -c "select pg_size_pretty(pg_database_size('test'));"
 ```
 
-## 4.14 启用执行语句时间显示
+## 3.6 表占用空间
 ```
-\timing on
-```
-
-# 5. 查询数据库并创建表
-```
-testdb=# select version();
-version
------------------------------------------------------------------------
- PostgreSQL 8.3.23 (Greenplum Database 5.7.0 build commit:f7c6eb5cc61b25a7ff9c5a657d6f903befbae013) on x86_64-pc-linux-gnu, compiled by
- GCC gcc (GCC) 6.2.0, 64-bit compiled on Mar 30 2018 14:20:38
-(1 row)
-===============================
-testdb=# create table test01(id int primary key,name varchar(128));
+psql -c "select pg_size_pretty(pg_relation_size('schema.test'));"
 ```
 
-## 5.1 查询数据库
+## 3.7 表统计
 ```
-select * from test01;
-```
-
-## 5.2 查看当前用户名
-```
-select *from current_user;
-select user;
+select relname from pg_class t where t.relname like 'ods%';
+select relname from pg_class t where t.relname like 'kn%';
 ```
 
-## 5.3授权用户
+## 3.8 统计资源
 ```
-alter role 
-
-admin with password 'gpadmin';
+select gp_segment_id,count(*) from test group by 1 ;
 ```
 
-## 5.4 访问权限设置 pg_hba.conf
+## 3.9 查询集群状态
 ```
-host testdb gpadmin 10.12.7.16/32 md5
-```
-
-## 5.5 设置用户密码
-```
-create user xiao with password 'king1111';
+SELECT dbid, content, address, port, replication_port, fselocation as datadir FROM gp_segment_configuration, pg_filespace_entry WHERE dbid=fsedbid ORDER BY dbid;
 ```
 
-# 6. 基本语法
-## 6.1 获取语法介绍
+## 3.10 查看实例配置和状态
 ```
-\h create view
-```
-
-## 6.2 创建表
-### 6.2.1 未设置主键
-```
-testdb=# create table test001(id int, name varchar(128));
-NOTICE:  Table doesn't have 'DISTRIBUTED BY' clause -- Using column named 'id' as the Greenplum Database data distribution key for this table.
-HINT:  The 'DISTRIBUTED BY' clause determines the distribution of data. Make sure column(s) chosen are the optimal data distribution key to minimize skew.
+select * from gp_segment_configuration order by 1;
 ```
 
-### 6.2.2 设置一个主键
+# 第4部分 系统优化
+## 4.1 收集统计信息，回收空间
 ```
-testdb=# create table test002(id int, name varchar(128)) distributed by(id);
+# 定期使用回收垃圾和收集统计信息，尤其在大数据量删除，导入以后，非常重要
+Vacuum analyze tablename
 ```
-
-#### 6.2.3 设置两个主键
+## 4.2 进程监控：
 ```
-testdb=# create table test003(id int, name varchar(128)) distributed by(id,name);
-```
-
-#### 6.2.4 建表随机分布
-```
-testdb=# create table test004(id int, name varchar(128)) distributed randomly;
-```
-
-#### 6.2.5 唯一键分布
-```
-testdb=# create table test005(id int primary key, name varchar(128));
-NOTICE:  CREATE TABLE / PRIMARY KEY will create implicit index "test005_pkey" for table "test005"
-
-testdb=# create table test006(id int unique, name varchar(128));
-NOTICE:  CREATE TABLE / UNIQUE will create implicit index "test006_id_key" for table "test006"
+select * from pg_stat_activity  where waiting ='t' ORDER BY current_query;    select * from pg_stat_activity  where waiting ='t' ORDER BY sess_id;
+select * from pg_stat_activity  where waiting ='f' ORDER BY current_query;    select * from pg_stat_activity  where waiting ='f' ORDER BY sess_id;
+select * from pg_tablespace;
+select * from pg_filespace;
 ```
 
-#### 6.2.6 指定分布键与主键不一样，分部件会被更改为主键
+## 4.3 查看数据分布
 ```
-testdb=# create table test007(id int unique, name varchar(128)) distributed by(id,name);
-NOTICE:  updating distribution policy to match new unique index
-NOTICE:  CREATE TABLE / UNIQUE will create implicit index "test007_id_key" for table "test007"
-
-testdb=# \d test007;
-           Table "public.test007"
- Column |          Type          | Modifiers 
---------+------------------------+-----------
- id     | integer                | 
- name   | character varying(128) | 
-Indexes:
-    "test007_id_key" UNIQUE, btree (id)
-Distributed by: (id)
+select * from pg_filespace_entry;
+SELECT spcname, fsname,fsedbid,fselocation FROM pg_tablespace pgts, pg_filespace pgfs,pg_filespace_entry pgfse WHERE pgts.spcfsoid=pgfse.fsefsoid AND pgfse.fsefsoid=pgfs.oid ORDER BY 1,3;
 ```
 
-#### 6.2.7 拷贝结构相同数据表
+## 4.4 查看日志级别
 ```
-testdb=# create table test001_like (like test001);
-NOTICE:  Table doesn't have 'DISTRIBUTED BY' clause, defaulting to distribution columns from LIKE table
-CREATE TABLE
-testdb=# \d test001_like;
-         Table "public.test001_like"
- Column |          Type          | Modifiers 
---------+------------------------+-----------
- id     | integer                | 
- name   | character varying(128) | 
-Distributed by: (id)
+# 控制写到服务器日志里的信息的详细程度。有效值是 DEBUG5， DEBUG4，DEBUG3，DEBUG2， DEBUG1，INFO，NOTICE， WARNING ，ERROR，LOG， FATAL，和 PANIC。 每个级别都包含它后面的级别。越靠后的数值发往服务器日志的信息越少。 缺省是 NOTICE。请注意 LOG 和 client_min_messages 里面的同名级别优先级不同。 只有超级用户可以修改这个设置。[]()
+show log_min_messages;
 
-testdb=# \d test001;
-           Table "public.test001"
- Column |          Type          | Modifiers 
---------+------------------------+-----------
- id     | integer                | 
- name   | character varying(128) | 
-Distributed by: (id)
+# 这个选项控制那些信息发送到客户端。 有效的数值是 DEBUG5，DEBUG4， DEBUG3，DEBUG2， DEBUG1，LOG，NOTICE， WARNING 和 ERROR。 每个级别包含所有它后面的级别，级别越靠后，发送的信息越少。 缺省是 NOTICE。这里的 LOG 和 log_min_messages 里面的有不同的级别。
+show client_min_messages;
 ```
 
-## 6.3 插入键值 insert
-### 6.3.1
+## 4.5 查看数据库备份
 ```
-testdb=# insert into test001 values(100,'jack'),(101,'david'),(102,'tom'),(103,'lily');
-INSERT 0 4
-```
-
-## 6.4 查询语句 select
-### 6.4.1 示例
-```
-# 查询表内容
-testdb=# select id,name from test001 order by id;
- id | name
-----+------
-(0 rows)
-
-# 不加入order by，数据顺序将随机显示
-testdb=# select * from test001;
- id  | name
------+-------
- 102 | tom
- 103 | lily
- 101 | david
- 100 | jack
-(4 rows)
-
-testdb=# select * from test001;
- id  | name 
------+-------
- 100 | jack
- 103 | lily
- 102 | tom
- 101 | david
-(4 rows)
-
-# 不指定from子句，执行函数
-testdb=# select greatest(1,2);
- greatest
-----------
-        2
-(1 row)
-
-# 简单科学计算
-testdb=# select 2^3+3+9*(8+1);
- ?column?
-----------
-       92
-(1 row)
-
+select pg_start_backup('backup baseline');
+select pg_stop_backup();
 ```
 
-### 6.4.2 复制查询到表结构及数据
+## 4.6 常看数据库.conf配置
 ```
-testdb=# create table test02 as select * from test001;
-NOTICE:  Table doesn't have 'DISTRIBUTED BY' clause. Creating a NULL policy entry.
-SELECT 4
+show all
+```
 
-# 手动指定 distributed 关键字
-testdb=# create table test3 as select * from test001 distributed by(id);
-SELECT 4
+## 4.7 查看当前日期属于一年中第几周
+```
+select EXTRACT(week from TIMESTAMP '2018-08-03');
 ```
